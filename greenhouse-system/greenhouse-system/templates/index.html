@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hệ thống Giám sát Nhà Kính</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg:        #0a0f0a;
+    --bg2:       #111811;
+    --bg3:       #182018;
+    --card:      #141f14;
+    --border:    #1e301e;
+    --green:     #4ade80;
+    --green2:    #22c55e;
+    --green-dim: #166534;
+    --amber:     #fbbf24;
+    --red:       #f87171;
+    --blue:      #60a5fa;
+    --text:      #e2f0e2;
+    --muted:     #6b8f6b;
+    --mono:      'DM Mono', monospace;
+    --sans:      'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid pattern */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.4;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ====== HEADER ====== */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,15,10,0.9);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    background: var(--green);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text h1 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+
+  .logo-text p {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .nav-menu {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    background: rgba(20,31,20,0.8);
+    transition: all 0.2s;
+    letter-spacing: 0.3px;
+  }
+
+  .nav-link:hover {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(74,222,128,0.05);
+  }
+
+  .nav-link.active {
+    border-color: var(--green);
+    color: var(--green);
+    background: rgba(74,222,128,0.08);
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--green-dim);
+    background: rgba(74,222,128,0.08);
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--green);
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .time-display {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* ====== MAIN LAYOUT ====== */
+  main {
+    position: relative;
+    z-index: 10;
+    padding: 24px 32px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* ====== SENSOR CARDS ====== */
+  .sensor-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .sensor-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .sensor-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent, var(--green));
+    border-radius: 16px 16px 0 0;
+  }
+
+  .sensor-card:hover { border-color: var(--accent, var(--green)); }
+
+  .card-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-value {
+    font-size: 52px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--accent, var(--green));
+    margin-bottom: 4px;
+    transition: color 0.5s;
+  }
+
+  .card-unit {
+    font-size: 20px;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .card-sub {
+    font-size: 12px;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  .card-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+
+  .status-ok   { background: rgba(74,222,128,0.1); color: var(--green); }
+  .status-warn { background: rgba(251,191,36,0.1); color: var(--amber); }
+  .status-alert{ background: rgba(248,113,113,0.1); color: var(--red); }
+
+  /* ====== RELAY CONTROLS ====== */
+  .section-title {
+    font-size: 13px;
+    font-family: var(--mono);
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .relay-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .relay-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: all 0.3s;
+  }
+
+  .relay-card.active {
+    border-color: var(--relay-color, var(--green));
+    background: color-mix(in srgb, var(--relay-color, var(--green)) 5%, var(--card));
+  }
+
+  .relay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .relay-info { display: flex; align-items: center; gap: 10px; }
+
+  .relay-icon {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    transition: all 0.3s;
+  }
+
+  .relay-card.active .relay-icon {
+    background: color-mix(in srgb, var(--relay-color, var(--green)) 15%, transparent);
+    border-color: var(--relay-color, var(--green));
+  }
+
+  .relay-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .relay-gpio {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+  }
+
+  /* Toggle Switch */
+  .toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .toggle-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    min-width: 24px;
+  }
+
+  .toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    transition: all 0.3s;
+  }
+
+  .slider:before {
+    content: '';
+    position: absolute;
+    width: 16px; height: 16px;
+    left: 3px; top: 3px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: all 0.3s;
+  }
+
+  input:checked + .slider {
+    background: color-mix(in srgb, var(--relay-color, var(--green)) 20%, transparent);
+    border-color: var(--relay-color, var(--green));
+  }
+
+  input:checked + .slider:before {
+    transform: translateX(20px);
+    background: var(--relay-color, var(--green));
+  }
+
+  /* Mode selector */
+  .mode-selector {
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+  }
+
+  .mode-btn {
+    flex: 1;
+    padding: 5px 0;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .mode-btn.active {
+    background: var(--relay-color, var(--green));
+    color: #000;
+    font-weight: 500;
+  }
+
+  /* Relay footer */
+  .relay-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .relay-runtime {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+  }
+
+  .relay-runtime span {
+    color: var(--relay-color, var(--green));
+    font-weight: 500;
+  }
+
+  .relay-trigger {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-align: right;
+  }
+
+  /* ====== CHARTS ====== */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .chart-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .chart-sub {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 12px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* ====== THRESHOLD SETTINGS ====== */
+  .threshold-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .threshold-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .threshold-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  .threshold-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--muted);
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+
+  .threshold-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .threshold-input {
+    width: 70px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 500;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .threshold-input:focus { border-color: var(--green); }
+
+  .threshold-unit {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .threshold-apply {
+    margin-top: 12px;
+    width: 100%;
+    padding: 7px;
+    background: transparent;
+    border: 1px solid var(--green-dim);
+    border-radius: 8px;
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .threshold-apply:hover {
+    background: rgba(74,222,128,0.1);
+  }
+
+  /* ====== LOG TABLE ====== */
+  .log-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .log-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    font-size: 11px;
+  }
+
+  .log-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    color: var(--text);
+  }
+
+  .log-table tr:last-child td { border-bottom: none; }
+  .log-table tr:hover td { background: var(--bg3); }
+
+  .log-event {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+
+  .event-on  { background: rgba(74,222,128,0.1); color: var(--green); }
+  .event-off { background: rgba(107,143,107,0.1); color: var(--muted); }
+  .event-alert { background: rgba(251,191,36,0.1); color: var(--amber); }
+
+  /* ====== FOOTER ====== */
+  footer {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 20px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Alert banner */
+  .alert-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: rgba(251,191,36,0.08);
+    border: 1px solid rgba(251,191,36,0.3);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--amber);
+    font-family: var(--mono);
+    animation: fadeIn 0.4s ease;
+    display: none;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🌿</div>
+    <div class="logo-text">
+      <h1>GreenHouse Monitor</h1>
+      <p>ESP32 · MQTT · Real-time</p>
+    </div>
+  </div>
+  <nav class="nav-menu">
+    <a href="/" class="nav-link active">📊 Dashboard</a>
+    <a href="/twin" class="nav-link">🌿 Digital Twin</a>
+    <a href="/ai" class="nav-link">🤖 AI Chat</a>
+    <a href="/security" class="nav-link">🔐 Security</a>
+  </nav>
+
+  <div class="header-right">
+    <div class="status-badge">
+      <div class="dot"></div>
+      <span id="conn-status">MOCK DATA</span>
+    </div>
+    <div class="time-display" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ALERT BAR -->
+  <div class="alert-bar" id="alert-bar">
+    ⚠️ <span id="alert-text"></span>
+  </div>
+
+  <!-- SENSOR CARDS -->
+  <div class="section-title">Dữ liệu cảm biến</div>
+  <div class="sensor-grid">
+
+    <!-- Nhiệt độ -->
+    <div class="sensor-card" style="--accent: #f87171">
+      <div class="card-label">🌡️ NHIỆT ĐỘ</div>
+      <div class="card-value" id="val-temp">--<span class="card-unit">°C</span></div>
+      <div class="card-sub">DHT22 · GPIO 4</div>
+      <div class="card-status" id="st-temp">—</div>
+    </div>
+
+    <!-- Độ ẩm -->
+    <div class="sensor-card" style="--accent: #60a5fa">
+      <div class="card-label">💧 ĐỘ ẨM KHÔNG KHÍ</div>
+      <div class="card-value" id="val-hum">--<span class="card-unit">%</span></div>
+      <div class="card-sub">DHT22 · GPIO 4</div>
+      <div class="card-status" id="st-hum">—</div>
+    </div>
+
+    <!-- Ánh sáng -->
+    <div class="sensor-card" style="--accent: #fbbf24">
+      <div class="card-label">☀️ ÁNH SÁNG</div>
+      <div class="card-value" id="val-light">--<span class="card-unit" style="font-size:16px">raw</span></div>
+      <div class="card-sub">LDR Module · GPIO 35</div>
+      <div class="card-status" id="st-light">—</div>
+    </div>
+
+  </div>
+
+  <!-- RELAY CONTROLS -->
+  <div class="section-title">Điều khiển thiết bị</div>
+  <div class="relay-grid">
+
+    <!-- Relay 1: Quạt -->
+    <div class="relay-card" id="card-fan" style="--relay-color: #60a5fa">
+      <div class="relay-header">
+        <div class="relay-info">
+          <div class="relay-icon">🌀</div>
+          <div>
+            <div class="relay-name">Quạt làm mát</div>
+            <div class="relay-gpio">GPIO 13 · Relay 1</div>
+          </div>
+        </div>
+        <div class="toggle-wrap">
+          <span class="toggle-label" id="lbl-fan">TẮT</span>
+          <label class="toggle">
+            <input type="checkbox" id="sw-fan" onchange="manualToggle('fan', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="mode-selector">
+        <button class="mode-btn" id="mode-fan-auto" onclick="setMode('fan','auto')" style="--relay-color:#60a5fa">AUTO</button>
+        <button class="mode-btn" id="mode-fan-manual" onclick="setMode('fan','manual')" style="--relay-color:#60a5fa">THỦ CÔNG</button>
+      </div>
+      <div class="relay-footer">
+        <div class="relay-runtime">Thời gian chạy: <span id="rt-fan">0 phút</span></div>
+        <div class="relay-trigger">Temp &gt; 30°C</div>
+      </div>
+    </div>
+
+    <!-- Relay 2: Đèn -->
+    <div class="relay-card" id="card-led" style="--relay-color: #fbbf24">
+      <div class="relay-header">
+        <div class="relay-info">
+          <div class="relay-icon">💡</div>
+          <div>
+            <div class="relay-name">Đèn LED</div>
+            <div class="relay-gpio">GPIO 12 · Relay 2</div>
+          </div>
+        </div>
+        <div class="toggle-wrap">
+          <span class="toggle-label" id="lbl-led">TẮT</span>
+          <label class="toggle">
+            <input type="checkbox" id="sw-led" onchange="manualToggle('led', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="mode-selector">
+        <button class="mode-btn" id="mode-led-auto" onclick="setMode('led','auto')" style="--relay-color:#fbbf24">AUTO</button>
+        <button class="mode-btn" id="mode-led-manual" onclick="setMode('led','manual')" style="--relay-color:#fbbf24">THỦ CÔNG</button>
+      </div>
+      <div class="relay-footer">
+        <div class="relay-runtime">Thời gian chạy: <span id="rt-led">0 phút</span></div>
+        <div class="relay-trigger">Ánh sáng &lt; 2000</div>
+      </div>
+    </div>
+
+    <!-- Relay 3: Bơm -->
+    <div class="relay-card" id="card-pump" style="--relay-color: #4ade80">
+      <div class="relay-header">
+        <div class="relay-info">
+          <div class="relay-icon">💧</div>
+          <div>
+            <div class="relay-name">Bơm tưới nước</div>
+            <div class="relay-gpio">GPIO 14 · Relay 3</div>
+          </div>
+        </div>
+        <div class="toggle-wrap">
+          <span class="toggle-label" id="lbl-pump">TẮT</span>
+          <label class="toggle">
+            <input type="checkbox" id="sw-pump" onchange="manualToggle('pump', this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="mode-selector">
+        <button class="mode-btn" id="mode-pump-auto" onclick="setMode('pump','auto')" style="--relay-color:#4ade80">AUTO</button>
+        <button class="mode-btn" id="mode-pump-manual" onclick="setMode('pump','manual')" style="--relay-color:#4ade80">THỦ CÔNG</button>
+      </div>
+      <div class="relay-footer">
+        <div class="relay-runtime">Thời gian chạy: <span id="rt-pump">0 phút</span></div>
+        <div class="relay-trigger">Temp &gt; 30°C</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CHARTS -->
+  <div class="section-title">Biểu đồ lịch sử</div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Nhiệt độ & Độ ẩm</div>
+          <div class="chart-sub">10 phút gần nhất · cập nhật mỗi 5 giây</div>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div>Nhiệt độ</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div>Độ ẩm</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-main"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Ánh sáng</div>
+          <div class="chart-sub">LDR raw value (0–4095)</div>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-light"></canvas></div>
+    </div>
+  </div>
+
+  <!-- THRESHOLD SETTINGS -->
+  <div class="section-title">Cài đặt ngưỡng</div>
+  <div class="threshold-card">
+    <div class="threshold-grid">
+      <div class="threshold-item">
+        <div class="threshold-label">🌡️ NGƯỠNG NHIỆT ĐỘ</div>
+        <div class="threshold-input-wrap">
+          <input class="threshold-input" type="number" id="thr-temp" value="30" min="20" max="50">
+          <span class="threshold-unit">°C</span>
+        </div>
+        <button class="threshold-apply" onclick="applyThreshold('temp')">ÁP DỤNG</button>
+      </div>
+      <div class="threshold-item">
+        <div class="threshold-label">💧 NGƯỠNG ĐỘ ẨM</div>
+        <div class="threshold-input-wrap">
+          <input class="threshold-input" type="number" id="thr-hum" value="50" min="20" max="90">
+          <span class="threshold-unit">%</span>
+        </div>
+        <button class="threshold-apply" onclick="applyThreshold('hum')">ÁP DỤNG</button>
+      </div>
+      <div class="threshold-item">
+        <div class="threshold-label">☀️ NGƯỠNG ÁNH SÁNG</div>
+        <div class="threshold-input-wrap">
+          <input class="threshold-input" type="number" id="thr-light" value="2000" min="500" max="4000">
+          <span class="threshold-unit">raw</span>
+        </div>
+        <button class="threshold-apply" onclick="applyThreshold('light')">ÁP DỤNG</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY LOG -->
+  <div class="section-title">Nhật ký hoạt động</div>
+  <div class="log-card">
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>THỜI GIAN</th>
+          <th>THIẾT BỊ</th>
+          <th>SỰ KIỆN</th>
+          <th>GIÁ TRỊ KÍch hoạt</th>
+          <th>NGƯỠNG</th>
+        </tr>
+      </thead>
+      <tbody id="log-body">
+        <!-- JS render -->
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<footer>
+  GreenHouse Monitor v1.0 · ESP32 + DHT22 + LDR · Đồ án tốt nghiệp CNTT
+</footer>
+
+<script>
+// =====================================================
+// STATE — toàn bộ dữ liệu hệ thống
+// =====================================================
+const state = {
+  temp: 28,
+  hum:  60,
+  light: 1500,
+  thresholds: { temp: 30, hum: 50, light: 2000 },
+  modes: { fan: 'auto', led: 'auto', pump: 'auto' },
+  relays: { fan: false, led: false, pump: false },
+  runtime: { fan: 0, led: 0, pump: 0 },   // phút
+  logs: []
+};
+
+// Lịch sử cho chart (12 điểm = 60 giây)
+const history = {
+  labels: [],
+  temp:  [],
+  hum:   [],
+  light: []
+};
+
+// =====================================================
+// CLOCK
+// =====================================================
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('vi-VN');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// =====================================================
+// MOCK DATA — giả lập cảm biến thay đổi tự nhiên
+// =====================================================
+function generateMockData() {
+  // Nhiệt độ dao động ±0.5°C mỗi lần
+  state.temp  = Math.max(20, Math.min(40, state.temp  + (Math.random()-0.48)*1.0));
+  state.hum   = Math.max(30, Math.min(90, state.hum   + (Math.random()-0.5)*2.0));
+  state.light = Math.max(0,  Math.min(4095, state.light + (Math.random()-0.5)*200));
+}
+
+// =====================================================
+// AUTO LOGIC — điều khiển relay theo ngưỡng
+// =====================================================
+function autoControl() {
+  const { temp, hum, light, thresholds, modes, relays } = state;
+
+  const shouldFan  = temp  > thresholds.temp;
+  const shouldLed  = light > thresholds.light;
+  const shouldPump = temp  > thresholds.temp;
+
+  checkAndToggle('fan',  shouldFan,  modes.fan);
+  checkAndToggle('led',  shouldLed,  modes.led);
+  checkAndToggle('pump', shouldPump, modes.pump);
+}
+
+function checkAndToggle(device, shouldOn, mode) {
+  if (mode !== 'auto') return; // Bỏ qua nếu đang thủ công
+  const wasOn = state.relays[device];
+  if (wasOn !== shouldOn) {
+    state.relays[device] = shouldOn;
+    addLog(device, shouldOn);
+  }
+}
+
+// =====================================================
+// MANUAL TOGGLE — người dùng bật/tắt thủ công
+// =====================================================
+function manualToggle(device, isOn) {
+  if (state.modes[device] !== 'manual') {
+    // Tự động chuyển sang manual khi người dùng tác động
+    setMode(device, 'manual');
+  }
+  state.relays[device] = isOn;
+  addLog(device, isOn, 'manual');
+  renderRelays();
+}
+
+// =====================================================
+// MODE SELECTOR — auto / thủ công
+// =====================================================
+function setMode(device, mode) {
+  state.modes[device] = mode;
+  document.getElementById(`mode-${device}-auto`).classList.toggle('active', mode==='auto');
+  document.getElementById(`mode-${device}-manual`).classList.toggle('active', mode==='manual');
+}
+
+// =====================================================
+// THRESHOLD — cập nhật ngưỡng
+// =====================================================
+function applyThreshold(type) {
+  const val = parseFloat(document.getElementById(`thr-${type}`).value);
+  if (isNaN(val)) return;
+  state.thresholds[type === 'temp' ? 'temp' : type === 'hum' ? 'hum' : 'light'] = val;
+  addLog('system', true, 'threshold', `Ngưỡng ${type} → ${val}`);
+}
+
+// =====================================================
+// RUNTIME TRACKER — đếm thời gian chạy
+// =====================================================
+function updateRuntime() {
+  ['fan','led','pump'].forEach(d => {
+    if (state.relays[d]) state.runtime[d]++;
+    document.getElementById(`rt-${d}`).textContent =
+      state.runtime[d] + ' phút';
+  });
+}
+
+// =====================================================
+// LOG
+// =====================================================
+const deviceNames = { fan: 'Quạt', led: 'Đèn LED', pump: 'Bơm tưới', system: 'Hệ thống' };
+
+function addLog(device, isOn, source = 'auto', note = '') {
+  const now = new Date().toLocaleTimeString('vi-VN');
+  const triggerMap = {
+    fan:  `Temp: ${state.temp.toFixed(1)}°C`,
+    led:  `Light: ${Math.round(state.light)}`,
+    pump: `Temp: ${state.temp.toFixed(1)}°C`,
+    system: note
+  };
+  const threshMap = {
+    fan:  `> ${state.thresholds.temp}°C`,
+    led:  `> ${state.thresholds.light}`,
+    pump: `> ${state.thresholds.temp}°C`,
+    system: ''
+  };
+
+  state.logs.unshift({
+    time: now,
+    device,
+    isOn,
+    source,
+    trigger: triggerMap[device] || '',
+    threshold: threshMap[device] || ''
+  });
+
+  if (state.logs.length > 20) state.logs.pop();
+  renderLog();
+}
+
+function renderLog() {
+  const tbody = document.getElementById('log-body');
+  tbody.innerHTML = state.logs.map(l => `
+    <tr>
+      <td>${l.time}</td>
+      <td>${deviceNames[l.device] || l.device}</td>
+      <td>
+        <span class="log-event ${l.isOn ? 'event-on' : 'event-off'}">
+          ${l.isOn ? '▲ BẬT' : '▼ TẮT'}
+          ${l.source === 'manual' ? ' (thủ công)' : ''}
+        </span>
+      </td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${l.trigger}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${l.threshold}</td>
+    </tr>
+  `).join('');
+}
+
+// =====================================================
+// RENDER UI
+// =====================================================
+function renderSensors() {
+  const { temp, hum, light, thresholds } = state;
+
+  // Nhiệt độ
+  document.getElementById('val-temp').innerHTML =
+    temp.toFixed(1) + '<span class="card-unit">°C</span>';
+  const stTemp = document.getElementById('st-temp');
+  if (temp > thresholds.temp) {
+    stTemp.className = 'card-status status-alert';
+    stTemp.textContent = '⚠ Vượt ngưỡng — Quạt & Bơm đang bật';
+  } else if (temp > thresholds.temp - 3) {
+    stTemp.className = 'card-status status-warn';
+    stTemp.textContent = '⚡ Gần ngưỡng';
+  } else {
+    stTemp.className = 'card-status status-ok';
+    stTemp.textContent = '✓ Bình thường';
+  }
+
+  // Độ ẩm
+  document.getElementById('val-hum').innerHTML =
+    hum.toFixed(0) + '<span class="card-unit">%</span>';
+  const stHum = document.getElementById('st-hum');
+  if (hum < thresholds.hum) {
+    stHum.className = 'card-status status-warn';
+    stHum.textContent = '⚡ Độ ẩm thấp';
+  } else {
+    stHum.className = 'card-status status-ok';
+    stHum.textContent = '✓ Bình thường';
+  }
+
+  // Ánh sáng
+  document.getElementById('val-light').innerHTML =
+    Math.round(light) + '<span class="card-unit" style="font-size:16px"> raw</span>';
+  const stLight = document.getElementById('st-light');
+  if (light > thresholds.light) {
+    stLight.className = 'card-status status-warn';
+    stLight.textContent = '⚡ Thiếu ánh sáng — Đèn đang bật';
+  } else {
+    stLight.className = 'card-status status-ok';
+    stLight.textContent = '✓ Đủ ánh sáng';
+  }
+}
+
+function renderRelays() {
+  ['fan','led','pump'].forEach(d => {
+    const isOn = state.relays[d];
+    const card = document.getElementById(`card-${d}`);
+    const sw   = document.getElementById(`sw-${d}`);
+    const lbl  = document.getElementById(`lbl-${d}`);
+
+    card.classList.toggle('active', isOn);
+    sw.checked = isOn;
+    lbl.textContent = isOn ? 'BẬT' : 'TẮT';
+    lbl.style.color = isOn ? 'var(--relay-color)' : 'var(--muted)';
+  });
+
+  // Alert bar
+  const alerts = [];
+  if (state.relays.fan)  alerts.push('Quạt đang bật (Nhiệt độ cao)');
+  if (state.relays.led)  alerts.push('Đèn đang bật (Thiếu sáng)');
+  if (state.relays.pump) alerts.push('Bơm đang bật (Nhiệt độ cao)');
+
+  const bar = document.getElementById('alert-bar');
+  if (alerts.length > 0) {
+    bar.style.display = 'flex';
+    document.getElementById('alert-text').textContent = alerts.join(' · ');
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+// =====================================================
+// CHARTS
+// =====================================================
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: { duration: 300 },
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#182018',
+    borderColor: '#1e301e',
+    borderWidth: 1,
+    titleColor: '#6b8f6b',
+    bodyColor: '#e2f0e2',
+    titleFont: { family: 'DM Mono', size: 10 },
+    bodyFont: { family: 'DM Mono', size: 12 },
+  }},
+  scales: {
+    x: { grid: { color: '#1e301e' }, ticks: { color: '#6b8f6b', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 6 }},
+    y: { grid: { color: '#1e301e' }, ticks: { color: '#6b8f6b', font: { family: 'DM Mono', size: 10 }}}
+  }
+};
+
+const mainChart = new Chart(document.getElementById('chart-main'), {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      {
+        label: 'Nhiệt độ',
+        data: [],
+        borderColor: '#f87171',
+        backgroundColor: 'rgba(248,113,113,0.05)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2,
+        pointBackgroundColor: '#f87171'
+      },
+      {
+        label: 'Độ ẩm',
+        data: [],
+        borderColor: '#60a5fa',
+        backgroundColor: 'rgba(96,165,250,0.05)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2,
+        pointBackgroundColor: '#60a5fa',
+        yAxisID: 'y2'
+      }
+    ]
+  },
+  options: {
+    ...chartDefaults,
+    scales: {
+      ...chartDefaults.scales,
+      y:  { ...chartDefaults.scales.y, title: { display: true, text: '°C', color: '#6b8f6b', font: { size: 10, family: 'DM Mono' } }},
+      y2: { ...chartDefaults.scales.y, position: 'right', title: { display: true, text: '%', color: '#6b8f6b', font: { size: 10, family: 'DM Mono' } }, grid: { drawOnChartArea: false }}
+    }
+  }
+});
+
+const lightChart = new Chart(document.getElementById('chart-light'), {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label: 'Ánh sáng',
+      data: [],
+      borderColor: '#fbbf24',
+      backgroundColor: 'rgba(251,191,36,0.05)',
+      borderWidth: 2,
+      fill: true,
+      tension: 0.4,
+      pointRadius: 2,
+      pointBackgroundColor: '#fbbf24'
+    }]
+  },
+  options: {
+    ...chartDefaults,
+    scales: {
+      ...chartDefaults.scales,
+      y: { ...chartDefaults.scales.y, min: 0, max: 4095 }
+    }
+  }
+});
+
+function updateCharts() {
+  const now = new Date().toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+  // Giữ tối đa 24 điểm
+  if (history.labels.length >= 24) {
+    history.labels.shift();
+    history.temp.shift();
+    history.hum.shift();
+    history.light.shift();
+  }
+
+  history.labels.push(now);
+  history.temp.push(parseFloat(state.temp.toFixed(1)));
+  history.hum.push(parseFloat(state.hum.toFixed(0)));
+  history.light.push(Math.round(state.light));
+
+  mainChart.data.labels = [...history.labels];
+  mainChart.data.datasets[0].data = [...history.temp];
+  mainChart.data.datasets[1].data = [...history.hum];
+  mainChart.update('none');
+
+  lightChart.data.labels = [...history.labels];
+  lightChart.data.datasets[0].data = [...history.light];
+  lightChart.update('none');
+}
+
+// Khởi tạo mode buttons
+['fan','led','pump'].forEach(d => {
+  document.getElementById(`mode-${d}-auto`).classList.add('active');
+});
+
+// =====================================================
+// MAIN LOOP — chạy mỗi 5 giây
+// =====================================================
+function mainLoop() {
+  generateMockData();  // 1. Tạo dữ liệu giả
+  autoControl();       // 2. Kiểm tra ngưỡng, bật/tắt relay
+  renderSensors();     // 3. Cập nhật UI cảm biến
+  renderRelays();      // 4. Cập nhật UI relay
+  updateCharts();      // 5. Cập nhật biểu đồ
+  updateRuntime();     // 6. Cập nhật thời gian chạy
+}
+
+// Chạy lần đầu ngay
+mainLoop();
+
+// Lặp lại mỗi 5 giây
+setInterval(mainLoop, 5000);
+</script>
+</body>
+</html>

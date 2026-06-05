@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GreenHouse - Nhận diện & Giọng nói</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#060d06;--panel:#0d1a0d;--border:#1a3a1a;
+  --green:#00ff88;--amber:#ffb800;--red:#ff4444;--blue:#44aaff;
+  --text:#c8e6c8;--muted:#4a7a4a;
+  --mono:'JetBrains Mono',monospace;--sans:'Space Grotesk',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
+
+header{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 24px;border-bottom:1px solid var(--border);
+  background:rgba(6,13,6,.95)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,#00ff88,#00cc66);
+  border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px}
+.logo h1{font-size:14px;font-weight:700;color:var(--green)}
+.logo p{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.nav a{padding:5px 12px;border-radius:6px;text-decoration:none;font-size:11px;
+  font-family:var(--mono);color:var(--muted);border:1px solid var(--border);
+  margin-left:6px;transition:all .2s}
+.nav a:hover,.nav a.active{border-color:var(--green);color:var(--green)}
+
+main{padding:24px;max-width:1200px;margin:0 auto;
+  display:grid;grid-template-columns:1fr 1fr;gap:20px}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px}
+.panel-title{font-size:10px;font-family:var(--mono);color:var(--muted);
+  letter-spacing:1.5px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+
+/* CAMERA */
+.cam-wrap{position:relative;border-radius:12px;overflow:hidden;
+  background:#0a140a;border:2px solid var(--border);aspect-ratio:4/3}
+#cam-feed{width:100%;height:100%;object-fit:cover;display:block}
+.cam-overlay{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;flex-direction:column;gap:8px;
+  background:rgba(0,0,0,.6);font-family:var(--mono)}
+
+/* STATUS BADGE */
+.status-badge{display:flex;align-items:center;gap:8px;padding:10px 16px;
+  border-radius:10px;margin-bottom:16px;font-family:var(--mono);font-size:13px;
+  font-weight:600;border:1px solid}
+.status-locked{background:rgba(255,68,68,.1);border-color:rgba(255,68,68,.3);color:var(--red)}
+.status-unlocked{background:rgba(0,255,136,.1);border-color:rgba(0,255,136,.3);color:var(--green)}
+.status-scanning{background:rgba(255,184,0,.1);border-color:rgba(255,184,0,.3);color:var(--amber)}
+
+.pulse{width:10px;height:10px;border-radius:50%;background:currentColor;
+  animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+
+/* VOICE SECTION */
+.voice-btn{width:100%;padding:18px;border-radius:12px;border:2px solid;
+  font-size:15px;font-weight:600;cursor:pointer;transition:all .3s;
+  font-family:var(--sans);margin-bottom:14px;display:flex;align-items:center;
+  justify-content:center;gap:10px}
+.voice-btn.inactive{background:#0a140a;border-color:var(--border);
+  color:var(--muted);cursor:not-allowed}
+.voice-btn.ready{background:rgba(0,255,136,.08);border-color:var(--green);
+  color:var(--green)}
+.voice-btn.listening{background:rgba(255,68,68,.15);border-color:var(--red);
+  color:var(--red);animation:listenPulse 1s infinite}
+@keyframes listenPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
+
+/* TRANSCRIPT */
+.transcript{background:#0a140a;border:1px solid var(--border);border-radius:10px;
+  padding:14px;margin-bottom:14px;min-height:60px;font-family:var(--mono);font-size:12px}
+.transcript-heard{color:var(--amber);margin-bottom:4px}
+.transcript-cmd{color:var(--green);font-size:13px;font-weight:600}
+.transcript-err{color:var(--red)}
+.transcript-hint{color:var(--muted)}
+
+/* COMMANDS LIST */
+.cmd-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px}
+.cmd-tag{background:#0a140a;border:1px solid var(--border);border-radius:7px;
+  padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--muted);
+  text-align:center;transition:all .3s}
+.cmd-tag.fired{border-color:var(--green);color:var(--green);
+  background:rgba(0,255,136,.1)}
+
+/* DEVICE STATUS */
+.dev-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dev-card{background:#0a140a;border:1px solid var(--border);border-radius:10px;
+  padding:12px;text-align:center;transition:all .3s}
+.dev-card.on{border-color:var(--dc,var(--green));
+  background:color-mix(in srgb,var(--dc,var(--green)) 8%,#0a140a)}
+.dev-emoji{font-size:24px;margin-bottom:4px}
+.dev-name{font-size:11px;font-family:var(--mono);color:var(--muted)}
+.dev-state{font-size:12px;font-weight:600;font-family:var(--mono);
+  color:var(--muted);margin-top:3px}
+.dev-card.on .dev-state{color:var(--dc,var(--green))}
+
+/* HISTORY */
+.history{background:#0a140a;border:1px solid var(--border);border-radius:10px;
+  padding:12px;max-height:180px;overflow-y:auto}
+.history::-webkit-scrollbar{width:3px}
+.history::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.hist-item{font-family:var(--mono);font-size:11px;padding:4px 0;
+  border-bottom:1px solid rgba(26,58,26,.3);display:flex;gap:8px}
+.hist-item:last-child{border:none}
+.hist-time{color:var(--muted);min-width:44px}
+.hist-cmd{color:var(--green)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔐</div>
+    <div><h1>GreenHouse Security</h1><p>Face ID + Voice Control</p></div>
+  </div>
+  <nav class="nav">
+    <a href="/" class="nav-link">📊 Dashboard</a>
+    <a href="/twin" class="nav-link">🌿 Digital Twin</a>
+    <a href="/ai" class="nav-link">🤖 AI Chat</a>
+    <a href="/security" class="nav-link active">🔐 Security</a>
+  </nav>
+</header>
+
+<main>
+
+  <!-- CỘT TRÁI: CAMERA + NHẬN DIỆN -->
+  <div>
+    <div class="panel">
+      <div class="panel-title">📷 NHẬN DIỆN KHUÔN MẶT</div>
+
+      <!-- Status -->
+      <div class="status-badge status-scanning" id="status-badge">
+        <div class="pulse"></div>
+        <span id="status-text">Đang quét khuôn mặt...</span>
+      </div>
+
+      <!-- Camera feed -->
+      <div class="cam-wrap">
+        <img id="cam-feed" src="/video_feed" alt="Camera Feed"
+             onerror="this.style.display='none';document.getElementById('cam-err').style.display='flex'">
+        <div class="cam-overlay" id="cam-err" style="display:none">
+          <span style="font-size:40px">📷</span>
+          <span style="color:var(--muted);font-size:12px">Camera không khả dụng</span>
+          <span style="color:var(--muted);font-size:10px">Kiểm tra kết nối webcam</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CỘT PHẢI: GIỌNG NÓI + ĐIỀU KHIỂN -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+
+    <!-- VOICE CONTROL -->
+    <div class="panel">
+      <div class="panel-title">🎙️ ĐIỀU KHIỂN GIỌNG NÓI</div>
+
+      <!-- Mic button -->
+      <button class="voice-btn inactive" id="mic-btn" onclick="toggleMic()" disabled>
+        <span id="mic-icon">🔒</span>
+        <span id="mic-text">Cần nhận diện khuôn mặt trước</span>
+      </button>
+
+      <!-- Transcript -->
+      <div class="transcript" id="transcript">
+        <div class="transcript-hint">Nhận diện khuôn mặt để mở khóa điều khiển giọng nói...</div>
+      </div>
+
+      <!-- Commands -->
+      <div style="font-size:10px;font-family:monospace;color:var(--muted);margin-bottom:8px;letter-spacing:1px">LỆNH GIỌNG NÓI</div>
+      <div class="cmd-grid">
+        <div class="cmd-tag" id="cmd-bat-quat">🌀 "bật quạt"</div>
+        <div class="cmd-tag" id="cmd-tat-quat">🌀 "tắt quạt"</div>
+        <div class="cmd-tag" id="cmd-bat-bom">💧 "bật bơm"</div>
+        <div class="cmd-tag" id="cmd-tat-bom">💧 "tắt bơm"</div>
+        <div class="cmd-tag" id="cmd-bat-den">💡 "bật đèn"</div>
+        <div class="cmd-tag" id="cmd-tat-den">💡 "tắt đèn"</div>
+        <div class="cmd-tag" id="cmd-mo-cua">🪟 "mở cửa"</div>
+        <div class="cmd-tag" id="cmd-dong-cua">🪟 "đóng cửa"</div>
+      </div>
+    </div>
+
+    <!-- DEVICE STATUS -->
+    <div class="panel">
+      <div class="panel-title">⚡ TRẠNG THÁI THIẾT BỊ</div>
+      <div class="dev-grid">
+        <div class="dev-card" id="dc-fan" style="--dc:#44aaff">
+          <div class="dev-emoji">🌀</div>
+          <div class="dev-name">Quạt</div>
+          <div class="dev-state" id="ds-fan">TẮT</div>
+        </div>
+        <div class="dev-card" id="dc-pump" style="--dc:#00ff88">
+          <div class="dev-emoji">💧</div>
+          <div class="dev-name">Bơm</div>
+          <div class="dev-state" id="ds-pump">TẮT</div>
+        </div>
+        <div class="dev-card" id="dc-led" style="--dc:#ffb800">
+          <div class="dev-emoji">💡</div>
+          <div class="dev-name">Đèn</div>
+          <div class="dev-state" id="ds-led">TẮT</div>
+        </div>
+        <div class="dev-card" id="dc-door" style="--dc:#aa44ff">
+          <div class="dev-emoji">🪟</div>
+          <div class="dev-name">Cửa</div>
+          <div class="dev-state" id="ds-door">ĐÓNG</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="panel">
+      <div class="panel-title">📋 LỊCH SỬ LỆNH</div>
+      <div class="history" id="history">
+        <div style="font-family:monospace;font-size:11px;color:var(--muted);text-align:center;padding:12px">
+          Chưa có lệnh nào
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+// ── FACE RECOGNITION STATUS ───────────────
+let isOwner = false;
+let isListening = false;
+let recognition = null;
+const cmdHistory = [];
+
+// Poll face status mỗi 1 giây
+setInterval(checkFaceStatus, 1000);
+checkFaceStatus();
+
+async function checkFaceStatus() {
+  try {
+    const res = await fetch('/face_status');
+    const data = await res.json();
+    setFaceStatus(data.is_owner, data.name || '');
+  } catch(e) {
+    setFaceStatus(false, '');
+  }
+}
+
+function setFaceStatus(owner, name) {
+  isOwner = owner;
+  const badge = document.getElementById('status-badge');
+  const text  = document.getElementById('status-text');
+  const btn   = document.getElementById('mic-btn');
+  const icon  = document.getElementById('mic-icon');
+  const mtext = document.getElementById('mic-text');
+
+  if (owner) {
+    badge.className = 'status-badge status-unlocked';
+    text.textContent = `✅ Đã nhận diện: ${name || 'Chủ nhân'}`;
+    btn.disabled = false;
+    btn.className = 'voice-btn ' + (isListening ? 'listening' : 'ready');
+    if (!isListening) {
+      icon.textContent = '🎙️';
+      mtext.textContent = 'Nhấn để bắt đầu nói lệnh';
+    }
+  } else {
+    badge.className = 'status-badge status-locked';
+    text.textContent = '🔒 Chưa nhận diện — Nhìn vào camera';
+    btn.disabled = true;
+    btn.className = 'voice-btn inactive';
+    icon.textContent = '🔒';
+    mtext.textContent = 'Cần nhận diện khuôn mặt trước';
+    if (isListening) stopListening();
+  }
+}
+
+// ── DEVICE STATUS ────────────────────────
+setInterval(updateDevices, 2000);
+updateDevices();
+
+async function updateDevices() {
+  try {
+    const res = await fetch('/api/state');
+    const d = await res.json();
+    const r = d.relays || {};
+    updateDev('fan',  r.fan,  'BẬT','TẮT');
+    updateDev('pump', r.pump, 'BẬT','TẮT');
+    updateDev('led',  r.led,  'BẬT','TẮT');
+    updateDev('door', r.door, 'MỞ','ĐÓNG');
+  } catch(e){}
+}
+
+function updateDev(name, on, onTxt, offTxt) {
+  document.getElementById('dc-'+name).classList.toggle('on', on);
+  const st = document.getElementById('ds-'+name);
+  st.textContent = on ? onTxt : offTxt;
+}
+
+// ── VOICE CONTROL ────────────────────────
+function toggleMic() {
+  if (!isOwner) return;
+  if (isListening) stopListening();
+  else startListening();
+}
+
+function startListening() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    showTranscript('error', '❌ Trình duyệt không hỗ trợ nhận diện giọng nói!\nDùng Chrome!');
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = 'vi-VN';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('mic-btn').className = 'voice-btn listening';
+    document.getElementById('mic-icon').textContent = '🔴';
+    document.getElementById('mic-text').textContent = 'Đang nghe... Nói lệnh!';
+    showTranscript('hint', '🎙️ Đang nghe... Hãy nói lệnh!');
+  };
+
+  recognition.onresult = (e) => {
+    let interim = '', final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      else interim += e.results[i][0].transcript;
+    }
+    if (interim) showTranscript('heard', '🎙️ Đang nghe: ' + interim);
+    if (final)   processCommand(final.toLowerCase().trim());
+  };
+
+  recognition.onerror = (e) => {
+    showTranscript('error', '❌ Lỗi mic: ' + e.error);
+  };
+
+  recognition.onend = () => {
+    if (isListening && isOwner) recognition.start(); // Tự restart
+  };
+
+  recognition.start();
+}
+
+function stopListening() {
+  isListening = false;
+  if (recognition) recognition.stop();
+  document.getElementById('mic-btn').className = 'voice-btn ready';
+  document.getElementById('mic-icon').textContent = '🎙️';
+  document.getElementById('mic-text').textContent = 'Nhấn để bắt đầu nói lệnh';
+  showTranscript('hint', 'Đã dừng. Nhấn nút để tiếp tục.');
+}
+
+// ── XỬ LÝ LỆNH ───────────────────────────
+const COMMANDS = {
+  'bật quạt' : {device:'fan',  action:'on',  id:'cmd-bat-quat', msg:'🌀 Bật quạt!'},
+  'tắt quạt' : {device:'fan',  action:'off', id:'cmd-tat-quat', msg:'🌀 Tắt quạt!'},
+  'bật bơm'  : {device:'pump', action:'on',  id:'cmd-bat-bom',  msg:'💧 Bật bơm!'},
+  'tắt bơm'  : {device:'pump', action:'off', id:'cmd-tat-bom',  msg:'💧 Tắt bơm!'},
+  'bật đèn'  : {device:'led',  action:'on',  id:'cmd-bat-den',  msg:'💡 Bật đèn!'},
+  'tắt đèn'  : {device:'led',  action:'off', id:'cmd-tat-den',  msg:'💡 Tắt đèn!'},
+  'mở cửa'   : {device:'door', action:'on',  id:'cmd-mo-cua',   msg:'🪟 Mở cửa!'},
+  'đóng cửa' : {device:'door', action:'off', id:'cmd-dong-cua', msg:'🪟 Đóng cửa!'},
+};
+
+function processCommand(text) {
+  let matched = null;
+  for (const [key, cmd] of Object.entries(COMMANDS)) {
+    if (text.includes(key)) { matched = {key, ...cmd}; break; }
+  }
+
+  if (!matched) {
+    showTranscript('heard', `🎙️ Nghe được: "${text}"\n❓ Không nhận ra lệnh. Thử lại!`);
+    return;
+  }
+
+  // Flash command tag
+  const tag = document.getElementById(matched.id);
+  if (tag) {
+    tag.classList.add('fired');
+    setTimeout(() => tag.classList.remove('fired'), 2000);
+  }
+
+  showTranscript('cmd', `✅ Nhận lệnh: "${matched.key}"\n→ ${matched.msg}`);
+
+  // Gửi lệnh lên Flask
+  fetch('/api/control', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({device: matched.device, action: matched.action})
+  }).then(r=>r.json()).then(data => {
+    updateDevices();
+    // Hiện countdown manual override
+    const secs = data.manual_seconds || 10;
+    showCountdown(matched.device, matched.msg, secs);
+  }).catch(() => {});
+
+  // Phát âm xác nhận
+  const speech = new SpeechSynthesisUtterance(matched.msg.replace(/[🌀💧💡🪟✅]/g,''));
+  speech.lang = 'vi-VN'; speech.rate = 1.1;
+  window.speechSynthesis.speak(speech);
+
+  // Thêm vào history
+  const time = new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  cmdHistory.unshift({time, cmd: matched.key, msg: matched.msg});
+  if (cmdHistory.length > 20) cmdHistory.pop();
+  renderHistory();
+}
+
+function showTranscript(type, text) {
+  const el = document.getElementById('transcript');
+  const classes = {heard:'transcript-heard', cmd:'transcript-cmd', error:'transcript-err', hint:'transcript-hint'};
+  el.innerHTML = `<div class="${classes[type]||''}">${text.replace(/\n/g,'<br>')}</div>`;
+}
+
+// Countdown hiện thị manual override
+const countdowns = {};
+function showCountdown(device, msg, totalSecs) {
+  if(countdowns[device]) clearInterval(countdowns[device]);
+  let rem = totalSecs;
+  const devNames = {fan:'Quat',pump:'Bom',led:'Den',door:'Cua'};
+  const update = () => {
+    if(rem <= 0){
+      clearInterval(countdowns[device]);
+      showTranscript('hint', msg + '\nAuto mode da khoi phuc!');
+      // Tra ve auto
+      fetch('/api/mode',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({device,mode:'auto'})
+      });
+      return;
+    }
+    showTranscript('cmd',
+      msg + '\n⏱ Tu dong sau: ' + rem + 's...'
+    );
+    rem--;
+  };
+  update();
+  countdowns[device] = setInterval(update, 1000);
+}
+
+function renderHistory() {
+  const el = document.getElementById('history');
+  if (!cmdHistory.length) {
+    el.innerHTML = '<div style="font-family:monospace;font-size:11px;color:var(--muted);text-align:center;padding:12px">Chưa có lệnh nào</div>';
+    return;
+  }
+  el.innerHTML = cmdHistory.map(h => `
+    <div class="hist-item">
+      <span class="hist-time">${h.time}</span>
+      <span class="hist-cmd">${h.msg}</span>
+    </div>`).join('');
+}
+</script>
+</body>
+</html>

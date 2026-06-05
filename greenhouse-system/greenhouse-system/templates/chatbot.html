@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GreenHouse AI Assistant</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#060d06;--panel:#0d1a0d;--border:#1a3a1a;
+  --green:#00ff88;--amber:#ffb800;--red:#ff4444;--blue:#44aaff;
+  --text:#c8e6c8;--muted:#4a7a4a;
+  --mono:'JetBrains Mono',monospace;--sans:'Space Grotesk',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+body::before{content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse at 20% 50%,rgba(0,255,136,.04) 0%,transparent 60%);
+  pointer-events:none;z-index:0}
+
+/* HEADER */
+header{position:relative;z-index:10;display:flex;align-items:center;
+  justify-content:space-between;padding:12px 24px;
+  border-bottom:1px solid var(--border);background:rgba(6,13,6,.95);flex-shrink:0}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,#00ff88,#00cc66);
+  border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;
+  box-shadow:0 0 16px rgba(0,255,136,.35)}
+.logo h1{font-size:14px;font-weight:700;color:var(--green)}
+.logo p{font-size:10px;color:var(--muted);font-family:var(--mono)}
+.nav{display:flex;gap:8px}
+.nav a{padding:5px 12px;border-radius:6px;text-decoration:none;font-size:11px;
+  font-family:var(--mono);color:var(--muted);border:1px solid var(--border);transition:all .2s}
+.nav a:hover,.nav a.active{border-color:var(--green);color:var(--green);background:rgba(0,255,136,.05)}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:260px 1fr;flex:1;overflow:hidden;position:relative;z-index:10}
+
+/* SIDEBAR */
+.sidebar{background:var(--panel);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow-y:auto;padding:16px}
+
+.side-title{font-size:9px;font-family:var(--mono);color:var(--muted);
+  letter-spacing:1.5px;margin-bottom:12px}
+
+/* Sensor mini cards */
+.mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.mini-card{background:#0a140a;border:1px solid var(--border);border-radius:10px;
+  padding:10px;position:relative;overflow:hidden}
+.mini-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1.5px;
+  background:var(--mc,var(--green))}
+.mini-lbl{font-size:9px;font-family:var(--mono);color:var(--muted);letter-spacing:.5px}
+.mini-val{font-size:18px;font-weight:700;color:var(--mc,var(--green));margin-top:3px}
+.mini-unit{font-size:10px;font-weight:400;color:var(--muted)}
+
+/* Device status */
+.dev-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.dev-item{display:flex;align-items:center;justify-content:space-between;
+  background:#0a140a;border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+.dev-item.active{border-color:var(--dc,var(--green));
+  background:color-mix(in srgb,var(--dc,var(--green)) 8%,#0a140a)}
+.dev-left{display:flex;align-items:center;gap:7px;font-size:11px}
+.dev-dot{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.dev-item.active .dev-dot{background:var(--dc,var(--green));
+  box-shadow:0 0 6px var(--dc,var(--green))}
+
+/* Alert box */
+.alert-box{background:#0a140a;border:1px solid var(--border);border-radius:10px;
+  padding:12px;flex:1;overflow-y:auto}
+.alert-box::-webkit-scrollbar{width:3px}
+.alert-box::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.alert-title{font-size:9px;font-family:var(--mono);color:var(--muted);
+  letter-spacing:1.5px;margin-bottom:8px}
+.alert-item{display:flex;gap:6px;padding:5px 0;
+  border-bottom:1px solid rgba(26,58,26,.4);font-size:11px;font-family:var(--mono)}
+.alert-item:last-child{border:none}
+.alert-time{color:var(--muted);min-width:42px;font-size:10px}
+.alert-warn{color:var(--amber)}
+.alert-ok  {color:var(--green)}
+.alert-err {color:var(--red)}
+.no-alert{color:var(--muted);font-size:11px;font-family:var(--mono);text-align:center;padding:20px 0}
+
+/* CHAT AREA */
+.chat-area{display:flex;flex-direction:column;overflow:hidden}
+
+/* Quick suggest */
+.suggests{padding:12px 16px 0;display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0}
+.sug-btn{padding:5px 10px;background:#0d1a0d;border:1px solid var(--border);
+  border-radius:20px;font-size:11px;font-family:var(--mono);color:var(--muted);
+  cursor:pointer;transition:all .2s}
+.sug-btn:hover{border-color:var(--green);color:var(--green)}
+
+/* Messages */
+.messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.messages::-webkit-scrollbar{width:4px}
+.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+.msg{display:flex;gap:8px;max-width:85%}
+.msg.user{align-self:flex-end;flex-direction:row-reverse}
+.msg-avatar{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;
+  justify-content:center;font-size:14px;flex-shrink:0}
+.msg.ai   .msg-avatar{background:linear-gradient(135deg,#00ff88,#00cc66)}
+.msg.user .msg-avatar{background:linear-gradient(135deg,#1a3a1a,#0d2a0d);border:1px solid var(--border)}
+.msg-bubble{padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.6}
+.msg.ai   .msg-bubble{background:var(--panel);border:1px solid var(--border);
+  border-radius:4px 12px 12px 12px;color:var(--text)}
+.msg.user .msg-bubble{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.2);
+  border-radius:12px 4px 12px 12px;color:var(--green)}
+.msg-time{font-size:10px;font-family:var(--mono);color:var(--muted);margin-top:4px;padding:0 4px}
+
+/* Typing indicator */
+.typing{display:flex;align-items:center;gap:4px;padding:10px 14px;
+  background:var(--panel);border:1px solid var(--border);border-radius:4px 12px 12px 12px;
+  width:60px}
+.typing span{width:6px;height:6px;border-radius:50%;background:var(--muted);
+  animation:bounce .8s infinite}
+.typing span:nth-child(2){animation-delay:.15s}
+.typing span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+/* Input area */
+.input-area{padding:14px 16px;border-top:1px solid var(--border);
+  background:rgba(6,13,6,.95);flex-shrink:0}
+.input-row{display:flex;gap:8px;align-items:flex-end}
+textarea{flex:1;background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:10px 14px;color:var(--text);
+  font-family:var(--sans);font-size:13px;resize:none;outline:none;
+  max-height:100px;transition:border-color .2s;line-height:1.5}
+textarea:focus{border-color:var(--green)}
+textarea::placeholder{color:var(--muted)}
+.send-btn{width:40px;height:40px;background:var(--green);border:none;border-radius:10px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:16px;transition:all .2s;flex-shrink:0}
+.send-btn:hover{background:#00cc66;transform:scale(1.05)}
+.send-btn:disabled{background:#1a3a1a;cursor:not-allowed;transform:none}
+.input-hint{font-size:10px;font-family:var(--mono);color:var(--muted);
+  margin-top:6px;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🤖</div>
+    <div><h1>GreenHouse AI Assistant</h1><p>Powered by Claude · Real-time Data</p></div>
+  </div>
+  <nav class="nav">
+    <a href="/" class="nav-link">📊 Dashboard</a>
+    <a href="/twin" class="nav-link">🌿 Digital Twin</a>
+    <a href="/ai" class="nav-link active">🤖 AI Chat</a>
+    <a href="/security" class="nav-link">🔐 Security</a>
+  </nav>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="side-title">DỮ LIỆU THỰC TẾ</div>
+    <div class="mini-grid">
+      <div class="mini-card" style="--mc:#ff6644">
+        <div class="mini-lbl">NHIỆT ĐỘ</div>
+        <div class="mini-val" id="s-temp">--<span class="mini-unit">°C</span></div>
+      </div>
+      <div class="mini-card" style="--mc:#44aaff">
+        <div class="mini-lbl">ĐỘ ẨM</div>
+        <div class="mini-val" id="s-hum">--<span class="mini-unit">%</span></div>
+      </div>
+      <div class="mini-card" style="--mc:#ffb800" style="grid-column:span 2">
+        <div class="mini-lbl">ÁNH SÁNG</div>
+        <div class="mini-val" id="s-light">--<span class="mini-unit"> raw</span></div>
+      </div>
+    </div>
+
+    <div class="side-title">THIẾT BỊ</div>
+    <div class="dev-list">
+      <div class="dev-item" id="d-fan" style="--dc:#44aaff">
+        <div class="dev-left"><div class="dev-dot"></div>🌀 Quạt làm mát</div>
+        <span id="st-fan" style="font-size:10px;font-family:monospace;color:var(--muted)">TẮT</span>
+      </div>
+      <div class="dev-item" id="d-pump" style="--dc:#00ff88">
+        <div class="dev-left"><div class="dev-dot"></div>💧 Bơm tưới nước</div>
+        <span id="st-pump" style="font-size:10px;font-family:monospace;color:var(--muted)">TẮT</span>
+      </div>
+      <div class="dev-item" id="d-led" style="--dc:#ffb800">
+        <div class="dev-left"><div class="dev-dot"></div>💡 Đèn LED</div>
+        <span id="st-led" style="font-size:10px;font-family:monospace;color:var(--muted)">TẮT</span>
+      </div>
+      <div class="dev-item" id="d-door" style="--dc:#aa44ff">
+        <div class="dev-left"><div class="dev-dot"></div>🪟 Cửa thông gió</div>
+        <span id="st-door" style="font-size:10px;font-family:monospace;color:var(--muted)">ĐÓNG</span>
+      </div>
+    </div>
+
+    <div class="side-title">CẢNH BÁO AI</div>
+    <div class="alert-box">
+      <div id="alert-list">
+        <div class="no-alert">Chưa có cảnh báo</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat-area">
+    <div class="suggests">
+      <button class="sug-btn" onclick="ask('Nhà kính đang thế nào?')">🌿 Trạng thái hiện tại</button>
+      <button class="sug-btn" onclick="ask('Có cần tưới nước không?')">💧 Cần tưới không?</button>
+      <button class="sug-btn" onclick="ask('Nhiệt độ có ổn không?')">🌡️ Nhiệt độ ổn không?</button>
+      <button class="sug-btn" onclick="ask('Đưa ra khuyến nghị cho nhà kính')">🤖 Khuyến nghị AI</button>
+      <button class="sug-btn" onclick="ask('Có bất thường gì không?')">⚠️ Phát hiện bất thường</button>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="msg ai">
+        <div class="msg-avatar">🤖</div>
+        <div>
+          <div class="msg-bubble">
+            Xin chào! Tôi là AI Assistant của hệ thống nhà kính thông minh. 🌿<br><br>
+            Tôi được kết nối với cảm biến thực tế và có thể giúp bạn:<br>
+            • Phân tích trạng thái nhà kính<br>
+            • Đưa ra khuyến nghị chăm sóc cây<br>
+            • Phát hiện bất thường<br>
+            • Trả lời câu hỏi về hệ thống<br><br>
+            Hỏi tôi bất cứ điều gì! 😊
+          </div>
+          <div class="msg-time">Vừa xong</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="inp" placeholder="Hỏi AI về nhà kính... (Enter để gửi)" rows="1"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMsg()">➤</button>
+      </div>
+      <div class="input-hint">Enter để gửi · Shift+Enter xuống dòng · Dữ liệu cảm biến thực tế</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── SENSOR DATA ───────────────────────────
+let sensorData = {temp:0,hum:0,light:0,relays:{fan:false,pump:false,led:false,door:false}};
+const socket = io();
+socket.on('update', d => { sensorData = d; updateSidebar(d); checkAlerts(d); });
+
+function updateSidebar(d) {
+  document.getElementById('s-temp').innerHTML  = d.temp.toFixed(1)+'<span class="mini-unit">°C</span>';
+  document.getElementById('s-hum').innerHTML   = Math.round(d.hum)+'<span class="mini-unit">%</span>';
+  document.getElementById('s-light').innerHTML = d.light+'<span class="mini-unit"> raw</span>';
+
+  ['fan','pump','led','door'].forEach(n => {
+    const on = d.relays[n];
+    const el = document.getElementById('d-'+n);
+    const st = document.getElementById('st-'+n);
+    el.classList.toggle('active', on);
+    st.textContent = n==='door' ? (on?'MỞ':'ĐÓNG') : (on?'BẬT':'TẮT');
+    st.style.color = on ? 'var(--green)' : 'var(--muted)';
+  });
+}
+
+fetch('/api/state').then(r=>r.json()).then(d=>{sensorData=d;updateSidebar(d);}).catch(()=>{});
+
+// ── SMART ALERTS ──────────────────────────
+const alertHistory = [];
+let prevTemp = 0;
+
+function checkAlerts(d) {
+  const alerts = [];
+  const now = new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+
+  // Nhiệt độ cao
+  if (d.temp > 35) alerts.push({type:'err', msg:`🔥 Nhiệt độ rất cao: ${d.temp.toFixed(1)}°C!`, time:now});
+  else if (d.temp > 30) alerts.push({type:'warn', msg:`⚠️ Nhiệt độ cao: ${d.temp.toFixed(1)}°C`, time:now});
+
+  // Nhiệt độ tăng đột biến
+  if (prevTemp > 0 && d.temp - prevTemp > 3) {
+    alerts.push({type:'err', msg:`📈 Nhiệt độ tăng đột biến +${(d.temp-prevTemp).toFixed(1)}°C!`, time:now});
+  }
+  prevTemp = d.temp;
+
+  // Độ ẩm thấp
+  if (d.hum < 30) alerts.push({type:'err', msg:`💧 Độ ẩm rất thấp: ${Math.round(d.hum)}%!`, time:now});
+  else if (d.hum < 50) alerts.push({type:'warn', msg:`⚠️ Độ ẩm thấp: ${Math.round(d.hum)}%`, time:now});
+
+  // Thiếu sáng
+  if (d.light > 800) alerts.push({type:'warn', msg:`☀️ Thiếu ánh sáng (${d.light} raw)`, time:now});
+
+  // Tất cả thiết bị bật cùng lúc
+  if (d.relays.fan && d.relays.pump && d.relays.led) {
+    alerts.push({type:'warn', msg:`⚡ Tất cả thiết bị đang hoạt động`, time:now});
+  }
+
+  if (alerts.length === 0 && Math.random() < 0.1) {
+    alerts.push({type:'ok', msg:`✅ Hệ thống hoạt động bình thường`, time:now});
+  }
+
+  alerts.forEach(a => {
+    if (!alertHistory.find(h => h.msg === a.msg)) {
+      alertHistory.unshift(a);
+      if (alertHistory.length > 10) alertHistory.pop();
+    }
+  });
+
+  const el = document.getElementById('alert-list');
+  if (alertHistory.length === 0) {
+    el.innerHTML = '<div class="no-alert">Chưa có cảnh báo</div>';
+  } else {
+    el.innerHTML = alertHistory.map(a => `
+      <div class="alert-item">
+        <span class="alert-time">${a.time}</span>
+        <span class="alert-${a.type}">${a.msg}</span>
+      </div>`).join('');
+  }
+}
+
+// ── CHAT ──────────────────────────────────
+const messagesEl = document.getElementById('messages');
+
+function scrollBottom() {
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addMsg(role, text) {
+  const time = new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = `
+    <div class="msg-avatar">${role==='ai'?'🤖':'👤'}</div>
+    <div>
+      <div class="msg-bubble">${text.replace(/\n/g,'<br>')}</div>
+      <div class="msg-time">${time}</div>
+    </div>`;
+  messagesEl.appendChild(div);
+  scrollBottom();
+  return div;
+}
+
+function showTyping() {
+  const div = document.createElement('div');
+  div.className = 'msg ai'; div.id = 'typing-msg';
+  div.innerHTML = `<div class="msg-avatar">🤖</div>
+    <div><div class="typing"><span></span><span></span><span></span></div></div>`;
+  messagesEl.appendChild(div); scrollBottom();
+}
+
+function hideTyping() {
+  const el = document.getElementById('typing-msg');
+  if (el) el.remove();
+}
+
+async function sendMsg() {
+  const inp = document.getElementById('inp');
+  const text = inp.value.trim();
+  if (!text) return;
+
+  inp.value = ''; inp.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+  addMsg('user', text);
+  showTyping();
+
+  // Build context từ sensor thật
+  const d = sensorData;
+  const r = d.relays || {};
+  const context = `
+Dữ liệu nhà kính thực tế:
+- Nhiệt độ: ${d.temp?.toFixed(1)}°C (ngưỡng: 30°C)
+- Độ ẩm không khí: ${Math.round(d.hum)}% (ngưỡng: 50%)
+- Ánh sáng: ${d.light} raw
+- Quạt: ${r.fan?'ĐANG BẬT':'TẮT'}
+- Bơm tưới: ${r.pump?'ĐANG BẬT':'TẮT'}
+- Đèn LED: ${r.led?'ĐANG BẬT':'TẮT'}
+- Cửa thông gió: ${r.door?'ĐANG MỞ':'ĐÓNG'}
+
+Điều kiện tự động:
+- Quạt bật khi T > 30°C
+- Cửa mở khi T > 33°C
+- Bơm bật khi độ ẩm KK < 50%
+- Đèn bật khi trời tối (LDR DO=1)`;
+
+  try {
+    // Gọi qua Flask backend — không cần API key!
+    const res = await fetch('/api/ai_chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text})
+    });
+
+    const data = await res.json();
+    hideTyping();
+    const reply = data.reply || 'Không nhận được phản hồi!';
+    addMsg('ai', reply);
+  } catch(e) {
+    hideTyping();
+    addMsg('ai', '⚠️ Lỗi kết nối Flask. Kiểm tra server!');
+  }
+
+  document.getElementById('send-btn').disabled = false;
+  scrollBottom();
+}
+
+function ask(q) {
+  document.getElementById('inp').value = q;
+  sendMsg();
+}
+
+// Auto check alerts every 10s
+setInterval(() => {
+  fetch('/api/state').then(r=>r.json()).then(d=>{
+    sensorData=d; updateSidebar(d); checkAlerts(d);
+  }).catch(()=>{});
+}, 10000);
+</script>
+</body>
+</html>
